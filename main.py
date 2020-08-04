@@ -205,6 +205,3 @@ while True:
 
     logging.info("Instance status: " + str(instance_status))
     time.sleep(5)
-
-    stopInstance(1)
-    stopInstance(2)
