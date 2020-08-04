@@ -180,6 +180,8 @@ while True:
                 serverconfig = json.load(serverconfig_file)
                 # Call the event check and launch function
                 eventCheck(serverconfig)
+    
+    time.sleep(5)
 
     # If no scheduled events left and default lobbies configured, start Default settings on any available instances
     if (c_default_lobbies == "True"):
@@ -190,4 +192,4 @@ while True:
                 startInstance()
 
     logging.info("Current status: "+str(instance_status))
-    time.sleep(10)
+    time.sleep(5)
