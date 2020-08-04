@@ -2,3 +2,4 @@ config.ini
 **/instances
 *.log
 accserver.exe
+**/testdata
