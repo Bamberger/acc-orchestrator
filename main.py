@@ -28,6 +28,7 @@ def startInstance(serverconfig="default"):
             if (instance_status[instance]["config"] == "default"):
                 instance_id = instance
                 stopInstance(instance_id)
+                break
 
     # If no instances available, error and break
     if instance_id == 0:
@@ -64,6 +65,7 @@ def startInstance(serverconfig="default"):
     instance_status[instance_id]["status"] = "running"
     if (default == True):
         instance_status[instance_id]["config"] = "default"
+        instance_status[instance_id]["serverName"] = str(serverconfig["settings.json"]["serverName"])
     else:
         instance_status[instance_id]["config"] = str(
             serverconfig["acco.json"]["eventId"])
@@ -90,6 +92,8 @@ def startInstance(serverconfig="default"):
     else:
         logging.info("Succesfully started instance ID "+str(instance_id) +
                      " Status: " + str(instance_status[instance_id]))
+    
+    logging.info("Instance status: " + str(instance_status))
 
 
 def stopInstance(instance_id):
@@ -124,6 +128,8 @@ def stopInstance(instance_id):
         instance_status[instance_id]["config"] = 0
         instance_status[instance_id]["timeEnd"] = 0
         instance_status[instance_id]["serverName"] = 0
+    
+    logging.info("Instance status: " + str(instance_status))
 
 
 def eventCheck(serverconfig):
@@ -203,5 +209,5 @@ while True:
                     "Instance slot available, starting default ")
                 startInstance()
 
-    logging.info("Instance status: " + str(instance_status))
+    # logging.info("Instance status: " + str(instance_status))
     time.sleep(5)
