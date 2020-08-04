@@ -96,12 +96,12 @@ def stopInstance(instance_id):
     # Function to stop an instance ID and upload results
     logging.info("Instance stop called for instance ID: " + str(instance_id))
 
-    # TODO Upload results
-
+    # Determine pid and kill
     pid = instance_status[instance_id]["pid"]
     p = psutil.Process(pid)
     psutil.Process.kill(p)
 
+    # Wait to confirm instance is stopped
     timer = 0
     while (psutil.pid_exists(pid) == True):
         if (timer >= 30):
@@ -109,13 +109,21 @@ def stopInstance(instance_id):
             return
         timer += 1
         time.sleep(1)
+    
+    # Save any results files
+    # TODO Upload results to DB instead of file move
+    results_dir = "./instances/" + str(instance_id) + "/results/"
+    for results_file in os.listdir(results_dir):
+        os.rename(str(results_dir + results_file),"./results/"+str(results_file))
 
+    # Update instance status
     if (psutil.pid_exists(pid) == False):
         logging.info("Succesfully stopped instance ID:  "+str(instance_id))
         instance_status[instance_id]["pid"] = 0
         instance_status[instance_id]["status"] = "available"
         instance_status[instance_id]["config"] = 0
         instance_status[instance_id]["timeEnd"] = 0
+        instance_status[instance_id]["serverName"] = 0
 
 
 def eventCheck(serverconfig):
@@ -197,3 +205,6 @@ while True:
 
     logging.info("Instance status: " + str(instance_status))
     time.sleep(5)
+
+    stopInstance(1)
+    stopInstance(2)
