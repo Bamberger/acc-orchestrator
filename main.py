@@ -69,6 +69,7 @@ def startInstance(serverconfig="default"):
             serverconfig["acco.json"]["eventId"])
         instance_status[instance_id]["timeEnd"] = int(
             serverconfig["acco.json"]["timeEnd"])
+        instance_status[instance_id]["serverName"] = str(serverconfig["settings.json"]["serverName"])
 
     # Wait up to 30 seconds and confirm instance is started
     timer = 0
@@ -85,6 +86,7 @@ def startInstance(serverconfig="default"):
         instance_status[instance_id]["status"] = "available"
         instance_status[instance_id]["config"] = 0
         instance_status[instance_id]["timeEnd"] = 0
+        instance_status[instance_id]["serverName"] = 0
     else:
         logging.info("Succesfully started instance ID "+str(instance_id) +
                      " Status: " + str(instance_status[instance_id]))
@@ -156,7 +158,8 @@ while (instance_iter <= c_instance_limit):
         "status": "available",
         "pid": 0,
         "config": 0,
-        "timeEnd": 0
+        "timeEnd": 0,
+        "serverName": 0
     }
     instance_iter += 1
 logging.info("Instance status: " + str(instance_status))
@@ -171,6 +174,9 @@ while True:
     for instance_id in instance_status:
         if (instance_status[instance_id]["timeEnd"] <= now and instance_status[instance_id]["status"] == "running" and instance_status[instance_id]["config"] != "default"):
             stopInstance(instance_id)
+
+    # Look for instances with no running pid
+    # TODO this...
 
     # Look for events to start
     # TODO Implement DB or API integration
