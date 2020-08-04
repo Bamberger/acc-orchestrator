@@ -143,6 +143,8 @@ config = configparser.ConfigParser()  # Init ConfigParser
 config.read(acco_conf_file)  # Parse the config file
 # Get instance limit from config
 c_instance_limit = int(config.get('general', 'instance_limit'))
+# Get default lobbies flag from config
+c_default_lobbies = str(config.get('general', 'default_lobbies'))
 logging.info(
     "Instance limit loaded from config file, Instance limit is: " + str(c_instance_limit))
 
@@ -172,19 +174,20 @@ while True:
 
     # Look for events to start
     # TODO Implement DB or API integration
-    for event_file in os.listdir("./testdata/"):
+    for event_file in os.listdir("./events/"):
         if event_file.endswith(".json"):
-            with open("./testdata/" + event_file) as serverconfig_file:
+            with open("./events/" + event_file) as serverconfig_file:
                 serverconfig = json.load(serverconfig_file)
                 # Call the event check and launch function
                 eventCheck(serverconfig)
 
-    # If no scheduled events left, start Default settings on any available instances
-    for instance_num in instance_status:
-        if (instance_status[instance_num]["status"] == "available"):
-            logging.info(
-                "Instance slot available, starting default ")
-            startInstance()
+    # If no scheduled events left and default lobbies configured, start Default settings on any available instances
+    if (c_default_lobbies == "True"):
+        for instance_num in instance_status:
+            if (instance_status[instance_num]["status"] == "available"):
+                logging.info(
+                    "Instance slot available, starting default ")
+                startInstance()
 
     logging.info("Current status: "+str(instance_status))
     time.sleep(10)

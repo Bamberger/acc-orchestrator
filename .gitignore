@@ -3,3 +3,4 @@ config.ini
 *.log
 accserver.exe
 **/testdata
+**/events
