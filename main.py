@@ -167,8 +167,6 @@ logging.info("Instance status: " + str(instance_status))
 
 # Main service loop
 while True:
-    logging.info("Instance status: " + str(instance_status))
-
     # Look for events to stop
     now = time.time()
     for instance_id in instance_status:
@@ -197,5 +195,5 @@ while True:
                     "Instance slot available, starting default ")
                 startInstance()
 
-    logging.info("Current status: "+str(instance_status))
+    logging.info("Instance status: " + str(instance_status))
     time.sleep(5)
