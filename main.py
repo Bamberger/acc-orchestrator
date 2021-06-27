@@ -3,15 +3,28 @@ import subprocess
 import time
 import logging
 import os
+import sys
 import json
 import psutil
 import pymongo
 from bson import json_util
 
-acco_conf_file = "config.ini"
+acco_conf_file = "./config.ini"
 excluded_files = ['acco_default.json', 'configuration.json', 'current', '_id']
-logging.basicConfig(filename='main.log', level=logging.DEBUG,
-                    format='%(asctime)s %(levelname)s %(message)s')
+# logging.basicConfig(filename='main.log', level=logging.DEBUG,
+#                     format='%(asctime)s %(levelname)s %(message)s')
+
+logFormatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+rootLogger = logging.getLogger()
+rootLogger.setLevel(logging.DEBUG)
+
+fileHandler = logging.FileHandler("main.log")
+fileHandler.setFormatter(logFormatter)
+rootLogger.addHandler(fileHandler)
+
+consoleHandler = logging.StreamHandler()
+consoleHandler.setFormatter(logFormatter)
+rootLogger.addHandler(consoleHandler)
 
 
 def startInstance(serverconfig="default"):
@@ -43,7 +56,6 @@ def startInstance(serverconfig="default"):
         if curr_file not in excluded_files:
             os.remove("./instances/" + str(instance_id) +
                       "/cfg/" + str(curr_file))
-            # print(os.listdir("./instances/" + str(instance_id) + "/cfg/"))
     logging.info("Config directory cleared for instance ID: "+str(instance_id))
 
     # If serverconfig not provided, load default from acco_default.json
@@ -55,11 +67,10 @@ def startInstance(serverconfig="default"):
             serverconfig = json.load(json_file)
     # If remote mode is True, update DB to flag event as assigned
     elif c_remote_mode == 'True':
-        print(serverconfig["acco"])
         query = {"acco.eventId": serverconfig["acco"]["eventId"]}
         newvalues = {"$set": {"acco.eventStatus": "assigned",
                               "acco.host": c_host_id, "acco.lastUpdate": time.time()}}
-        col_events.update_one(query, newvalues)
+        db.events.update_one(query, newvalues)
 
     # Create config files from serverconfig
     for config_file in serverconfig:
@@ -67,8 +78,12 @@ def startInstance(serverconfig="default"):
             with open("./instances/" + str(instance_id) + "/cfg/" + str(config_file) + ".json", 'w') as fp:
                 json.dump(serverconfig[config_file], fp)
 
-    process = subprocess.Popen(["accserver.exe"], cwd="./instances/" + str(
-        instance_id) + "/", close_fds=True, stdout=subprocess.DEVNULL, stderr=None)
+    if system == "nt":
+        process = subprocess.Popen(["./opt/server/accServer.exe"], cwd="./instances/" + str(
+            instance_id) + "/", close_fds=True, stdout=subprocess.DEVNULL, stderr=None)
+    elif system == "posix":
+        process = subprocess.Popen(['wine', '/opt/server/accServer.exe'], cwd="./instances/" + str(
+            instance_id) + "/", close_fds=True, stdout=subprocess.DEVNULL, stderr=None)
     # Update instance_status
     instance_status[instance_id]["pid"] = process.pid
     instance_status[instance_id]["status"] = "running"
@@ -104,13 +119,13 @@ def startInstance(serverconfig="default"):
             query = {"acco.eventId": serverconfig["acco"]["eventId"]}
             newvalues = {"$set": {"acco.eventStatus": "scheduled",
                                   "acco.host": "", "acco.lastUpdate": ""}}
-            col_events.update_one(query, newvalues)
+            db.events.update_one(query, newvalues)
     else:
         if c_remote_mode == 'True':
             query = {"acco.eventId": serverconfig["acco"]["eventId"]}
             newvalues = {"$set": {"acco.eventStatus": "running",
                                   "acco.host": c_host_id, "acco.lastUpdate": time.time()}}
-            col_events.update_one(query, newvalues)
+            db.events.update_one(query, newvalues)
         logging.info("Succesfully started instance ID "+str(instance_id) +
                      " Status: " + str(instance_status[instance_id]))
 
@@ -144,8 +159,9 @@ def stopInstance(instance_id):
                 with open(str(results_dir + results_file)) as result:
                     # TODO: Something is broken here, I think it's the ACC JSON results files? It fails to parse but may only be with junk files?
                     result_json = json.load(result)
-                    print(result_json)
-                    col_results.insert_one(result_json)
+                    result_json["acco"]["event_id"] = instance_status[instance_id]["config"]
+                    result_json["acco"]["host_id"] = c_host_id
+                    db.results.insert_one(result_json)
 
             elif c_backup_results == 'True':
                 os.rename(str(results_dir + results_file),
@@ -163,8 +179,8 @@ def stopInstance(instance_id):
             query = {"acco.eventId": serverconfig["acco"]["eventId"]}
             newvalues = {"$set": {"acco.eventStatus": "finished",
                                   "acco.host": c_host_id, "acco.lastUpdate": time.time()}}
-            col_events.update_one(query, newvalues)
-        logging.info("Succesfully stopped instance ID:  "+str(instance_id))
+            db.events.update_one(query, newvalues)
+        logging.info("Succesfully stopped instance ID: "+str(instance_id))
         instance_status[instance_id]["pid"] = 0
         instance_status[instance_id]["status"] = "available"
         instance_status[instance_id]["config"] = 0
@@ -192,9 +208,11 @@ def eventCheck(serverconfig):
         startInstance(serverconfig)
 
 
+system = os.name
+logging.debug("OS Name is: "+system)
+
 # Stop any existing accserver.exe instances
 os.system("taskkill /f /im  accServer.exe")
-
 
 # Parse config file
 logging.info("Reading from config file: " + str(acco_conf_file))
@@ -215,25 +233,21 @@ logging.info("Host ID: "+str(c_host_id))
 # Get remote mode flag from config
 # TODO This should be bool? I think this broke somehow earlier
 c_remote_mode = str(config.get('general', 'remote_mode'))
-# If remote mode is True, get mongodb URI
+# Remote mode: get mongodb URI
 if (c_remote_mode) == 'True':
     c_mongo_uri = str(config.get('mongodb', 'mongo_uri'))
     mongo_client = pymongo.MongoClient(c_mongo_uri)
     host_info = mongo_client['HOST']
     logging.info("mongo connection established, host:" + str(host_info))
     db = mongo_client.acc_orchestrator
-    col_events = db.events
-    col_results = db.results
-
-# If remote mode, reset any 'running' instances
-if c_remote_mode == 'True':
+    # Reset any 'running' instances
     query = {"acco.host": c_host_id, "acco.eventStatus": "running"}
     newvalues = {"$set": {"acco.eventStatus": "scheduled",
                           "acco.host": "", "acco.lastUpdate": ""}}
-    for event in col_events.find(query):
+    for event in db.events.find(query):
         logging.warning(
             "Found instance in DB for this host flagged as 'running', de-allocating: " + str(event["acco"]))
-    col_events.update_one(query, newvalues)
+    db.events.update_one(query, newvalues)
 
 # Construct instance_status dict
 instance_iter = 1
@@ -256,9 +270,9 @@ while True:
     for instance_id in instance_status:
         if (instance_status[instance_id]["timeEnd"] <= now and instance_status[instance_id]["status"] == "running" and instance_status[instance_id]["config"] != "default"):
             stopInstance(instance_id)
+        # TODO: Status check all instance pids
 
     # TODO: Look for instances with no running pid
-    # TODO: check all instance pids
 
     # Look for events to start
     # If remote mode not selected, look for files in the ./events/ directory
@@ -273,15 +287,13 @@ while True:
     elif (c_remote_mode) == 'True':
         query = {"acco.eventStatus": "scheduled",
                  "acco.timeStart": {"$lt": time.time()}}
-        for event in col_events.find(query):
-            # print(event)
+        for event in db.events.find(query):
             eventconfig = json.dumps(
                 event, sort_keys=True, indent=4, default=json_util.default)
             serverconfig = json.loads(eventconfig)
-            # print(serverconfig["acco"])
             eventCheck(serverconfig)
-        for event in col_events.find():
-            print(event["acco"])
+        # for event in db.events.find():
+        #     logging.debug(event["acco"])
     else:
         logging.error(
             "Error finding events to start, remote mode flag not correctly set")
