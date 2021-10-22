@@ -19,11 +19,16 @@ VOLUME /opt/server
 # WORKDIR /opt/server
 
 COPY main.py .
-COPY config.ini .
-COPY opt opt
+# COPY config.ini .
+# COPY opt opt
 COPY instances instances
 COPY results results
 COPY results_errors results_errors
+
+EXPOSE 9600/udp
+EXPOSE 9601/tcp
+EXPOSE 9602/udp
+EXPOSE 9603/tcp
 
 CMD [ "python", "main.py" ]
 # CMD ["wine", "/opt/server/accServer.exe"]

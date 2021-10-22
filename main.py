@@ -115,13 +115,13 @@ def startInstance(serverconfig="default"):
         instance_status[instance_id]["config"] = 0
         instance_status[instance_id]["timeEnd"] = 0
         instance_status[instance_id]["serverName"] = 0
-        if c_remote_mode == 'True':
+        if (c_remote_mode == 'True' and default == False):
             query = {"acco.eventId": serverconfig["acco"]["eventId"]}
             newvalues = {"$set": {"acco.eventStatus": "scheduled",
                                   "acco.host": "", "acco.lastUpdate": ""}}
             db.events.update_one(query, newvalues)
     else:
-        if c_remote_mode == 'True':
+        if (c_remote_mode == 'True' and default == False):
             query = {"acco.eventId": serverconfig["acco"]["eventId"]}
             newvalues = {"$set": {"acco.eventStatus": "running",
                                   "acco.host": c_host_id, "acco.lastUpdate": time.time()}}
@@ -138,8 +138,9 @@ def stopInstance(instance_id):
 
     # Determine pid and kill
     pid = instance_status[instance_id]["pid"]
-    p = psutil.Process(pid)
-    psutil.Process.kill(p)
+    if (psutil.pid_exists(pid) == True):
+        p = psutil.Process(pid)
+        psutil.Process.kill(p)
 
     # Wait to confirm instance is stopped
     timer = 0
@@ -192,6 +193,7 @@ def stopInstance(instance_id):
 
 def eventCheck(serverconfig):
     # Helper to check if an event is running and if not launch it
+    logging.debug("Event Check started for: "+serverconfig["acco"]["eventId"])
     now = time.time()
 
     # Catch to avoid starting if already running
@@ -204,6 +206,11 @@ def eventCheck(serverconfig):
     # 1. Start time is in the past
     # 2. End time is in the future
     # 3. Status is "scheduled"
+    logging.debug("Now: "+str(now))
+    logging.debug("timeStart: "+str(serverconfig["acco"]["timeStart"]))
+    logging.debug("timeEnd: "+str(serverconfig["acco"]["timeEnd"]))
+    logging.debug("eventStatus: "+str(serverconfig["acco"]["eventStatus"]))
+    logging.debug("running_check: "+str(running_check))
     if int(serverconfig["acco"]["timeStart"]) <= now and int(serverconfig["acco"]["timeEnd"]) >= now and str(serverconfig["acco"]["eventStatus"]) == "scheduled" and running_check == False:
         startInstance(serverconfig)
 
@@ -291,9 +298,11 @@ while True:
             eventconfig = json.dumps(
                 event, sort_keys=True, indent=4, default=json_util.default)
             serverconfig = json.loads(eventconfig)
+            logging.debug("Found scheduled event: " +
+                          serverconfig["acco"]["eventId"])
             eventCheck(serverconfig)
-        # for event in db.events.find():
-        #     logging.debug(event["acco"])
+        for event in db.events.find():
+            logging.debug(event["acco"])
     else:
         logging.error(
             "Error finding events to start, remote mode flag not correctly set")
@@ -312,4 +321,5 @@ while True:
 
     # TODO: If remote mode, for each running instance check this is the right host and if not kill the instance
     # TODO: If remote mode, look for instances stuck on assigned
+    logging.debug("Instance status: " + str(instance_status))
     time.sleep(5)
